@@ -19,7 +19,8 @@ contain information about:
   power / time remaining (#/# #% #seconds H:M)
 
 A value can be sent to the writable entry 'lcd' (0-8) to control the
-brightness of the LCD panel.
+brightness of the LCD panel:
+  'echo 6 >/proc/vaio/lcd'
 
 I primarily set out to create this utility to find out how to write a basic
 kernel module that would use the /proc file system.  So far it works pretty

@@ -1,0 +1,48 @@
+
+Some contributions courtesy of users of the vaiostat tool:
+
+####
+
+* How to automatically load the kernel module after booting
+
+Ala Mandrake 8.0 distrib and "P. Stephen Murphy" <ps_murphy@yahoo.com>
+
+     #!/bin/sh
+     # (c) MandrakeSoft, Chmouel Boudjnah [1]<chmouel@mandrakesoft.com>
+     # $Id: Contrib.txt,v 1.1 2002-06-21 18:10:32 paulmcav Exp $
+     # description: launch modules specified in /etc/modules inspired by
+     a
+     # Debian idea.
+     [ -f /etc/modules ] || exit 0
+     # Loop over every line in /etc/modules.
+     (cat /etc/modules; echo) | while read module args
+     do
+       case "$module" in
+           \#*|"") continue ;;
+       esac
+       initlog -s "Loading module: $module"
+       modprobe $module $args >/dev/null 2>&1
+     done
+
+   I  then  simply added vaiostat to /etc/modules and I was good as gold.
+
+* I created a special runlevel for booting to low power mode.  I turned off a
+* bunch of services, and no longer boot to X.  The machine boots quite a bit
+* faster, and I can load X manually (startx) from a shell.
+
+..
+	# find out if we have a network connection
+	if /opt/sbin/mii-diag -s >/dev/null; then
+		/sbin/pump
+	fi
+
+	# start vaiostat kernel stuff
+	modprobe vaiostat
+
+	# things to do when running on level 4 (custom low power)
+	RL=`runlevel|awk '{print $2}'`
+	if [ $RL -eq 4 ]; then
+		echo "2" > /proc/vaio/lcd
+		modprobe vga16fb
+	fi
+..
