@@ -1,7 +1,7 @@
 // File:        vaiolcd.c
 // Author:      Paul McAvoy <paulmcav@queda.net>
 // 
-// $Id: vaiolcd.c,v 1.1 2002-01-14 09:24:04 paulmcav Exp $
+// $Id: vaiolcd.c,v 1.2 2002-06-21 17:57:53 paulmcav Exp $
 /*
  * Sony Vaio LCD status / control gkrellm module.
  * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
@@ -26,6 +26,7 @@
 #define CONFIG_NAME "VaioLcd"
 #define STYLE_NAME  "VaioLcd"
 
+/* the MAX_LCD value should match the kernel module LCD_NUM_STEPS value. */
 #define MIN_LCD 0
 #define MAX_LCD 8
 
