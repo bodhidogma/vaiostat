@@ -20,10 +20,10 @@ app, or customize his helper to support battery status info.
 
 I ended up learing how to write a kernel module to serve the purpose of a
 helper app to read info / set values for the Sony VAIO which I had.  As a
-result, these two applications require that kernel module.  It should be
-available within this distro.  If not, you can find it at:
+result, these two applications require that kernel module.
+The archive can be found near the same location:
 
-http://queda.net/linux/vaiostat/
+http://queda.net/linux/
 
 To install, you will need to firstly unpack the vaiostat archive.  Build and
 install the kernel module.  Once the module is installed, information about
