@@ -1,8 +1,8 @@
-/*
- * File:        vaiostat.c
+/**
+ * @file        vaiostat.c
  * Author:      Paul McAvoy <paulmcav@queda.net>
  * 
- * $Id: vaiostat.c,v 1.3 2002-06-21 17:57:36 paulmcav Exp $
+ * $Id: vaiostat.c,v 1.4 2002-11-09 08:28:31 paulmcav Exp $
  * 
  * Vaio status / control kernel module
  * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
@@ -31,6 +31,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
+ *
+ * 2002/10/15 22:30:00 Markus Ammer <IB-Ammer@t-online.de>
+ *      Support for battery 2 added.
 */
 
 #include <linux/init.h>
@@ -48,25 +52,25 @@ static char ctrl_msg[ BUFF_LEN ];
 
 static int verbose = 0;
 
-/* on my fx270 there appear to be only 8 steps.
- * use anything from 1-255 if you think you get better resolution.
-*/
-#define LCD_NUM_STEPS   8
+#define LCD_NUM_STEPS  8
 
-/* register locations */
 #define LCD_LEVEL   0x96
 #define PWR_SRCS    0x81
 
 #define B0_PCTRM	0xa0
-#define B0_LFTTK	0xa2
-#define B0_MAXRT    0xa4	/* max run time (s) = # / 7 */
 #define B0_MAXTK	0xb0
-#define B0_FULTK    0xb2
+#define B0_LFTTK1	0xa2   // left capacity bat1
+#define B0_LFTTK2	0xaa   // left capacity bat2
+#define B0_FULTK1	0xb2   // full capacity bat1
+#define B0_FULTK2	0xba   // full capacity bat2
+#define B0_MAXRT1	0xa4	/* max run time (s) = # / 7 */
+#define B0_MAXRT2	0xac	/* max run time (s) = # / 7 */
 
 // ------------------------------------------------------------------
-/**
+/** set 16 bit register value
  *
- * \param 
+ * @param addr  register address
+ * @param value value to set
 */
 
 static void ecr_set(u16 addr, u16 value)
@@ -81,9 +85,11 @@ static void ecr_set(u16 addr, u16 value)
 }
 
 // ------------------------------------------------------------------
-/**
+/** get 8 bit register value
  *
- * \param 
+ * @param addr register address
+ *
+ * @return 8 bit value
 */
 
 static u8 ecr_get8(u8 addr)
@@ -97,9 +103,11 @@ static u8 ecr_get8(u8 addr)
 }
 
 // ------------------------------------------------------------------
-/**
+/** get 16 bit register value
  *
- * \param 
+ * @param addr register address
+ *
+ * @return 16 bit value
 */
 
 static u16 ecr_get16(u8 addr)
@@ -108,9 +116,16 @@ static u16 ecr_get16(u8 addr)
 }
 
 // ------------------------------------------------------------------
-/**
+/** write message to proc file system
  *
- * \param 
+ * @param page  output buffer
+ * @param start
+ * @param off
+ * @param count
+ * @param eof
+ * @param data
+ *
+ * @return buffer length
 */
 
 static int
@@ -124,8 +139,8 @@ write_status_info(
 			 )
 {
 	int len = 0;
-	int v1,v2,v3;
-	int ac, mt, sec_left, h_left, m_left;
+	int v1,v11,v21,v12,v22,v3;
+	int ac, mt1, mt2, sec_left, h_left, m_left;
 
 	if ( off > 0 )
 		return 0;
@@ -139,12 +154,26 @@ write_status_info(
 
 	/* get power source / remaining information */
 	v3 = ecr_get16( PWR_SRCS );
-	v1 = ecr_get16( B0_LFTTK );
-	v2 = ecr_get16( B0_FULTK );
-	mt = ecr_get16( B0_MAXRT ) / 7;
 
+	//  battery 1
+	mt1 = ecr_get16( B0_MAXRT1 ) / 7;
+	v11 = ecr_get16( B0_LFTTK1 );
+	v21 = ecr_get16( B0_FULTK1 );
+	
+	//  battery 2
+	if (v3 & 0x2) {
+		mt2 = ecr_get16( B0_MAXRT2 ) / 7;
+		v12 = ecr_get16( B0_LFTTK2 );
+		v22 = ecr_get16( B0_FULTK2 );
+		}
+	else {	
+		mt2 = 0;
+		v12 = 0;
+		v22 = 1;
+		}			
+	
 	ac = (v3 & 0x4);
-	sec_left = (int)(mt / (float)v2 * v1);
+	sec_left = (int) ((mt1 / (float)v21 * v11) + (mt2 / (float)v22 *v12 )) ;
 
 	if ( ac ) {
 		sec_left = 0;
@@ -158,12 +187,14 @@ write_status_info(
 
 	len += sprintf( page+len,
 			"pw_src\t : %s%s%s\n"
-			"pw_lvl\t : %d/%d %d%% %d %d:%d\n"
+			"pw_lvl\t : %d/%d %d/%d %d%% %d%% %d%% %d %d:%.2d\n"
 			, (ac ? "AC " : "" )
 			, (v3 & 0x1 ? "BAT1 " : "" )
 			, (v3 & 0x2 ? "BAT2 " : "" )
-			, v1, v2
-			, 100*v1/v2
+	//  bat1 remaining/full, bat2 remaining/full
+			, v11, v21, v12, v22
+	//  bat1 percent, bat2 percent, (bat1+bat2) percent, sec h min remaining
+			, 100*v11/v21, 100*v12/v22, 100*(v11+v12)/(v21+v22)
 			, sec_left, h_left, m_left
 			);
 	
@@ -178,9 +209,11 @@ write_status_info(
 }
 
 // ------------------------------------------------------------------
-/**
+/** convert string to integer
  *
- * \param 
+ * @param buff input buffer
+ *
+ * @return integer value
 */
 
 int
@@ -199,9 +232,14 @@ atoi( char *buff )
 }
 
 // ------------------------------------------------------------------
-/**
+/** lcd proc input conversion routine
  *
- * \param 
+ * @param file   proc file handle
+ * @param buffer input buffer
+ * @param count  buffer length
+ * @param data
+ *
+ * @return       number of bytes read
 */
 
 static int
@@ -231,9 +269,9 @@ vaio_lcd_ctrl(
 }
 
 // ------------------------------------------------------------------
-/**
+/** module init function
  *
- * \param 
+ * @return module init return value
 */
 
 static int __init
@@ -257,9 +295,9 @@ vaio_init_module(void)
 }
 
 // ------------------------------------------------------------------
-/**
+/** module exit function
  *
- * \param 
+ * 
 */
 static void __exit
 vaio_exit_module( void )
@@ -283,4 +321,6 @@ MODULE_LICENSE("GPL");
 
 MODULE_PARM(verbose,"i");
 MODULE_PARM_DESC(verbose, "be verbose, default is 0 (no)");
+
+EXPORT_NO_SYMBOLS;
 

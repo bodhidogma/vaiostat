@@ -1,10 +1,12 @@
 # Makefile for a basic kernel module
 
-VER=1.0
+VER=1.0.3
 
 CC=gcc
-MODCFLAGS := -Wall -DMODULE -D__KERNEL__ -DLINUX -O2
+
+MODCFLAGS := -DMODULE -D__KERNEL__ -DLINUX -O2 -Wall
 KVER=$(shell uname -r)
+
 INC=-I/lib/modules/$(KVER)/build/include
 
 INSTDIR=/lib/modules/$(KVER)/misc

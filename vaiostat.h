@@ -1,8 +1,8 @@
-/*
- * File:        vaiostat.h
+/**
+ * @file        vaiostat.h
  * Author:      Paul McAvoy <paulmcav@queda.net>
  * 
- * $Id: vaiostat.h,v 1.2 2002-01-14 08:08:12 paulmcav Exp $             
+ * $Id: vaiostat.h,v 1.3 2002-11-09 08:28:31 paulmcav Exp $             
  * 
  * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
  * 
@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
 */
 
 #ifndef _VAIOSTAT_H_
@@ -27,6 +28,7 @@
 #ifdef __KERNEL__
 
 /* ioports used for brightness and events */
+
 #define SONYPI_DATA_IOPORT      0x62
 #define SONYPI_CST_IOPORT       0x66
 
@@ -35,8 +37,9 @@
 	while (--n && (command)) \
 	        udelay(100); \
 	if (!n) \
-	        printk(KERN_WARNING "vaio command failed at " __FILE__ " : " __FUNCTION__ "(line %d)\n", __LINE__); \
-}
+	        printk(KERN_WARNING "vaio command failed at %s:%s (line %d)\n", \
+				   	__FILE__, __FUNCTION__, __LINE__); \
+	}
 
 #define VAIOSTAT_MAJORVERSION        1
 #define VAIOSTAT_MINORVERSION        1
