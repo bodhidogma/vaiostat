@@ -1,106 +1,67 @@
-// File:        vaiostat.c
-// Author:      Paul McAvoy <paulmcav@queda.net>
-// Org:
-// Desc:        
-// 
-// $Revision: 1.1 $
 /*
- * $Log: not supported by cvs2svn $
- */
+ * File:        vaiostat.c
+ * Author:      Paul McAvoy <paulmcav@queda.net>
+ * 
+ * $Id: vaiostat.c,v 1.2 2002-01-14 08:08:12 paulmcav Exp $
+ * 
+ * Vaio status / control kernel module
+ * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
+ *
+ * 'vaiostat' is a simple kernel module used to examine and control some
+ * information about a Sony Vaio laptop.  This version includes support for:
+ *  LCD brightness information.
+ *  Battery / Power status information.
+ *
+ * The majority of the code used to get / set the information for the above
+ * parameters was found in various sources including:
+ * 
+ *  linux/drivers/char/sonypi.h     Stelian Pop <stelian.pop@fr.alcove.com>
+ *  picturebook/vaiobat.c           Andrew Tridgell <tridge@linuxcare.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
 
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-
 #include <linux/proc_fs.h>
-#include <asm/uaccess.h>
-
 #include <linux/delay.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
-
-#include <linux/time.h>
 
 #include "vaiostat.h"
 
 #define BUFF_LEN 256
 static char ctrl_msg[ BUFF_LEN ];
 
-#define MAX_FNKEY   16
-
 static int verbose = 0;
 
-static struct v_data {
-	int  fnkey_cnt;
-	int  fnkeyn[ MAX_FNKEY ];
-	char fnkeys[ MAX_FNKEY ][ BUFF_LEN ];
-} _vaio;
+#define LCD_LEVEL   0x96
+#define PWR_SRCS    0x81
 
-static struct sonypi_device sonypi_device;
+#define B0_PCTRM	0xa0
+#define B0_LFTTK	0xa2
+#define B0_MAXRT    0xa4	/* max run time (s) = # / 7 */
+#define B0_MAXTK	0xb0
+#define B0_FULTK    0xb2
 
 // ------------------------------------------------------------------
 /**
  *
  * \param 
 */
-
-/* Inits the queue */
-static inline void sonypi_initq(void) {
-        sonypi_device.queue.head = sonypi_device.queue.tail = 0;
-	sonypi_device.queue.len = 0;
-	sonypi_device.queue.s_lock = (spinlock_t)SPIN_LOCK_UNLOCKED;
-	init_waitqueue_head(&sonypi_device.queue.proc_list);
-}
-
-/* Pulls an event from the queue */
-static inline unsigned char sonypi_pullq(void) {
-        unsigned char result;
-	unsigned long flags;
-
-	spin_lock_irqsave(&sonypi_device.queue.s_lock, flags);
-	if (!sonypi_device.queue.len) {
-		spin_unlock_irqrestore(&sonypi_device.queue.s_lock, flags);
-		return 0;
-	}
-	result = sonypi_device.queue.buf[sonypi_device.queue.head];
-        sonypi_device.queue.head++;
-	sonypi_device.queue.head &= (SONYPI_BUF_SIZE - 1);
-	sonypi_device.queue.len--;
-	spin_unlock_irqrestore(&sonypi_device.queue.s_lock, flags);
-        return result;
-}
-
-/* Pushes an event into the queue */
-static inline void sonypi_pushq(unsigned char event) {
-	unsigned long flags;
-
-	spin_lock_irqsave(&sonypi_device.queue.s_lock, flags);
-	if (sonypi_device.queue.len == SONYPI_BUF_SIZE) {
-		/* remove the first element */
-        	sonypi_device.queue.head++;
-		sonypi_device.queue.head &= (SONYPI_BUF_SIZE - 1);
-		sonypi_device.queue.len--;
-	}
-	sonypi_device.queue.buf[sonypi_device.queue.tail] = event;
-	sonypi_device.queue.tail++;
-	sonypi_device.queue.tail &= (SONYPI_BUF_SIZE - 1);
-	sonypi_device.queue.len++;
-
-	kill_fasync(&sonypi_device.queue.fasync, SIGIO, POLL_IN);
-	wake_up_interruptible(&sonypi_device.queue.proc_list);
-	spin_unlock_irqrestore(&sonypi_device.queue.s_lock, flags);
-}
-
-/* Tests if the queue is empty */
-static inline int sonypi_emptyq(void) {
-        int result;
-	unsigned long flags;
-
-	spin_lock_irqsave(&sonypi_device.queue.s_lock, flags);
-        result = (sonypi_device.queue.len == 0);
-	spin_unlock_irqrestore(&sonypi_device.queue.s_lock, flags);
-        return result;
-}
-
 
 static void ecr_set(u16 addr, u16 value)
 {
@@ -113,18 +74,11 @@ static void ecr_set(u16 addr, u16 value)
 	wait_on_command( inw_p(SONYPI_CST_IOPORT) & 2 );
 }
 
-
-#ifdef NOTYET
-static u16 ecr_get(u16 addr)
-{
-	wait_on_command(inw_p(SONYPI_CST_IOPORT) & 3);
-	outw_p(0x80, SONYPI_CST_IOPORT);
-	wait_on_command(inw_p(SONYPI_CST_IOPORT) & 2);
-	outw_p(addr, SONYPI_DATA_IOPORT);
-	wait_on_command(inw_p(SONYPI_CST_IOPORT) & 2);
-	return inw_p(SONYPI_DATA_IOPORT);
-}
-#endif
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 
 static u8 ecr_get8(u8 addr)
 {
@@ -136,19 +90,22 @@ static u8 ecr_get8(u8 addr)
 	return inb_p(SONYPI_DATA_IOPORT);
 }
 
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
+
 static u16 ecr_get16(u8 addr)
 {
 	return ecr_get8(addr) | (ecr_get8(addr+1)<<8);
 }
 
-#define LCD_LEVEL   0x96
-#define PWR_SRCS    0x81
-
-#define B0_PCTRM	0xa0
-#define B0_LFTTK	0xa2
-#define B0_MAXRT    0xa4	/* max run time (s) = # / 7 */
-#define B0_MAXTK	0xb0
-#define B0_FULTK    0xb2
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 
 static int
 write_status_info(
@@ -163,7 +120,6 @@ write_status_info(
 	int len = 0;
 	int v1,v2,v3;
 	int ac, mt, sec_left, h_left, m_left;
-	int cnt;
 
 	if ( off > 0 )
 		return 0;
@@ -205,19 +161,6 @@ write_status_info(
 			, sec_left, h_left, m_left
 			);
 	
-	if ( verbose ){
-		len += sprintf( page+len,
-				"fn\t : verbose\n"
-				);
-	}
-	for ( cnt = 0; cnt < _vaio.fnkey_cnt; cnt++ ){
-		len += sprintf( page+len,
-				"fn%d\t : %x = %s\n"
-				, cnt
-				, _vaio.fnkeyn[ cnt ], _vaio.fnkeys[ cnt ]
-				);
-	}
-			
 	/* print out the status message buffer */
 	if ( len <= off+count ) *eof = 1;
 	*start = page + off;
@@ -227,6 +170,12 @@ write_status_info(
 
 	return len;
 }
+
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 
 int
 atoi( char *buff )
@@ -242,6 +191,12 @@ atoi( char *buff )
 	}
 	return val;
 }
+
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 
 static int
 vaio_lcd_ctrl(
@@ -269,27 +224,14 @@ vaio_lcd_ctrl(
 	return i;
 }
 
-static int
-vaio_fnkey_ctrl(
-		struct file *file,
-		const char *buffer,
-		unsigned long count,
-		void *data
-		)
-{
-	int i = 0;
-//	int val = 0;
-	for (i=0; i<BUFF_LEN-1 && i<count; i++)
-		get_user( ctrl_msg[i], buffer+i );
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 
-	ctrl_msg[i] = '\0';
-	 
-	printk( "vaio fnkey val: %s", ctrl_msg );
-
-	return i;
-}
-
-static int __init vaio_init_module(void)
+static int __init
+vaio_init_module(void)
 {
 	struct proc_dir_entry *vaio_dir;
 	struct proc_dir_entry *entry;
@@ -303,28 +245,31 @@ static int __init vaio_init_module(void)
 	entry = create_proc_entry( "lcd", 0222, vaio_dir );
 	entry->write_proc = vaio_lcd_ctrl;
 
-	entry = create_proc_entry( "fnkey", 0222, vaio_dir );
-	entry->write_proc = vaio_fnkey_ctrl;
-
-	memset( &_vaio, 0, sizeof(_vaio) );
-	
-//	if ( verbose ) printk( "vaiostat:init_module\n" );
-
+/*	if ( verbose ) printk( "vaiostat:init_module\n" );
+*/
 	return 0;
 }
 
+// ------------------------------------------------------------------
+/**
+ *
+ * \param 
+*/
 static void __exit
 vaio_exit_module( void )
 {
 	remove_proc_entry( "vaio", &proc_root );
 
-//	if ( verbose ) printk( "vaiostat:cleanup_module\n" );
+/*	if ( verbose ) printk( "vaiostat:cleanup_module\n" );
+*/
 }
 
 /* module entry points */
 
 module_init( vaio_init_module );
 module_exit( vaio_exit_module );
+
+/* module informationals & parameter stuff */
 
 MODULE_AUTHOR("Paul McAvoy <paulmcav@queda.net>");
 MODULE_DESCRIPTION("Support selected Sony Vaio features.");

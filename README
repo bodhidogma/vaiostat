@@ -1,0 +1,32 @@
+VaioStat - Sony VAIO status / control kernel module.
+====================================================
+
+Installation Instructions:
+
+  make
+  make install (as root)
+
+This kernel module once installed will generate a /proc file entry:
+
+/proc/vaio/
+
+Of which, there will be two more file entries.  The 'status' entry will
+contain information about:
+  lcd brightness (0-8)
+  power supply sources (AT, BAT1, BAT2)
+  power / time remaining (#/# #% #seconds H:M)
+
+A value can be sent to the writable entry 'lcd' (0-8) to control the
+brightness of the LCD panel.
+
+I primarily set out to create this utility to find out how to write a basic
+kernel module that would use the /proc file system.  So far it works pretty
+well!
+
+If you have any comments / questions / suggestions, send them to:
+
+Paul McAvoy <paulmcav@queda.net>
+
+Thanks.
+
+  
