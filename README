@@ -25,10 +25,10 @@ I primarily set out to create this utility to find out how to write a basic
 kernel module that would use the /proc file system.  So far it works pretty
 well!
 
+The original location for this package should be:
+http://queda.net/linux/
+
 If you have any comments / questions / suggestions, send them to:
 
 Paul McAvoy <paulmcav@queda.net>
-
-Thanks.
-
   
