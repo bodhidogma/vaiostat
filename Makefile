@@ -2,9 +2,10 @@
 
 CC=gcc
 MODCFLAGS := -Wall -DMODULE -D__KERNEL__ -DLINUX
-INC= -I/lib/modules/$(uname -r)/build/include
+VER=$(shell uname -r)
+INC=-I/lib/modules/$(VER)/build/include
 
-INSTDIR=/lib/modules/`uname -r`/misc
+INSTDIR=/lib/modules/$(VER)/misc
 
 vaiostat.o: vaiostat.c
 	$(CC) $(MODCFLAGS) $(INC) -c $^
@@ -13,4 +14,4 @@ clean:
 	@-rm -f vaiostat.o
 
 install: vaiostat.o
-	@install -D -m644 $^ $(INSTDIR)/$^
+	install -D -m644 $^ $(INSTDIR)/$^
