@@ -1,13 +1,13 @@
 // File:        vaiobat.c
 // Author:      Paul McAvoy <paulmcav@queda.net>
 // 
-// $Id: vaiobat.c,v 1.1 2002-01-14 09:24:04 paulmcav Exp $
+// $Id: vaiobat.c,v 1.2 2002-11-11 07:37:19 paulmcav Exp $
 /*
  * Vaio Battery / Power information gkrellm module.
  * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
  *
  * vaiobat displays power sources as well as battery % / time remaining.
- *
+ * 
  * Requires the use of vaiostat kernel module to read Sony Vaio information.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +23,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+ * Version 1.2 2002/10/15 23:00:00 markus: Support for battery 2 enabled.
+ *
+
 */
 
 #include <gkrellm/gkrellm.h>
@@ -39,7 +43,7 @@ static Panel    *panel;
 
 static Decal    *ac_decal,
 				*batt1_decal,
-//				*batt2_decal,
+				*batt2_decal,
 				*apm_text;
 static Krell    *apm_krell;
 
@@ -53,7 +57,9 @@ static struct vaio_data _vaio;
 /**
  * Read information from the kernel module at /proc/vaio/status
  * 
- * \param vdata pointer to vaio_data information
+ * @param  vdata pointer to vaio_data information
+ * 
+ * @return 0 = okay
 */
 
 int
@@ -64,7 +70,9 @@ read_vaio_data( struct vaio_data *vdata )
 
 	vdata->lcd_level = 0;
 	vdata->power_src = 0;
-	vdata->power_pct = 0;
+	vdata->power_pctt = 0;
+	vdata->power_pct1 = 0;
+	vdata->power_pct2 = 0;
 	vdata->power_time = 0;
 	
 	if ( !(fh = fopen("/proc/vaio/status", "r")) ){
@@ -83,8 +91,9 @@ read_vaio_data( struct vaio_data *vdata )
 		vdata->power_src |= 4;
 
 	fgets( buff, sizeof(buff), fh ); // power level
-	sscanf( buff, "%*s : %*d/%*d %d%% %d"
-			, &vdata->power_pct, &vdata->power_time
+	sscanf( buff, "%*s : %*d/%*d %*d/%*d %d%% %d%% %d%% %d"
+			, &vdata->power_pct1, &vdata->power_pct2
+			, &vdata->power_pctt, &vdata->power_time
 		 );
 
 	fclose( fh );
@@ -92,10 +101,12 @@ read_vaio_data( struct vaio_data *vdata )
 }
 
 // ------------------------------------------------------------------
-/**
- * Callback when the panel has been exposed.
- * \param widget widget object
- * \param ev event message
+/** Callback when the panel has been exposed.
+ * 
+ * @param widget widget object
+ * @param ev event message
+ *
+ * @return FALSE
 */
 
 static gint
@@ -113,8 +124,7 @@ panel_expose_event( GtkWidget *widget, GdkEventExpose *ev )
 #define MN_TIME( x )	(int)(((x / 3600.0) - (x / 3600)) * 60)
 
 // ------------------------------------------------------------------
-/**
- * Callback to re-draw all the various stuff on the panel.
+/** Callback to re-draw all the various stuff on the panel.
  * Includes drawing power sources, and battery % or time left.
 */
 
@@ -132,45 +142,41 @@ update_plugin()
 		read_vaio_data( &_vaio );
 		
 		gkrellm_update_krell( panel, apm_krell,
-				_vaio.power_pct	
+				_vaio.power_pctt	
 				);
 	
-	if ( _vaio.power_src & 4 ){
-		gkrellm_draw_decal_pixmap( panel, ac_decal, D_MISC_AC );
-		
-		// move battery decal to ac decal over one pos
-		batt1_decal->x = ac_decal->x + ac_decal->w + 4;
-	}
-	else {
-		// erase current decals
-		gkrellm_draw_decal_pixmap( panel, ac_decal, D_MISC_BLANK );
-		gkrellm_draw_decal_pixmap( panel, batt1_decal, D_MISC_BLANK );
-		
-		// update display && move battery decal to ac decal pos
-		gkrellm_draw_panel_layers( panel );
-		batt1_decal->x = ac_decal->x;
-	}
 	if ( _vaio.power_src & 1 ){
 		gkrellm_draw_decal_pixmap( panel, batt1_decal, D_MISC_BATTERY );
 	}
 	else {
 		gkrellm_draw_decal_pixmap( panel, batt1_decal, D_MISC_BLANK );
 	}
-/*	
-	if ( bat & 2 ){
-		gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BATTERY );
+
+	if ( _vaio.power_src & 4 ){
+		// ac power connected; ac symbol replaces batt2
+		gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BLANK );
+		gkrellm_draw_decal_pixmap( panel, ac_decal, D_MISC_AC );
 	}
 	else {
-		gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BLANK );
+		// no ac power, only batteries
+		gkrellm_draw_decal_pixmap( panel, ac_decal, D_MISC_BLANK );
+		if ( _vaio.power_src & 2 ){
+			gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BATTERY );
+		}
+		else {
+			gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BLANK );
+		}
 	}
-*/	
-	if ( _vaio.display_time && !(_vaio.power_src & 0x4) )
-		sprintf( buff, "%d:%d"
-			, HR_TIME( _vaio.power_time)
-			, MN_TIME( _vaio.power_time) );
+
+	// battery capacity percentage is always shown, even with ac
+	// remaining time only without ac power
+	if ( _vaio.display_time && !( _vaio.power_src & 4) )
+		sprintf( buff, "%d:%.2d"
+		, HR_TIME( _vaio.power_time)
+		, MN_TIME( _vaio.power_time) );
 	else
-		sprintf( buff, "%d%%", _vaio.power_pct );
-	
+		sprintf( buff, "%d%%", _vaio.power_pctt );
+
 	gkrellm_draw_decal_text( panel, apm_text, buff, -1 );
 
 	gkrellm_draw_panel_layers( panel );
@@ -178,11 +184,12 @@ update_plugin()
 }
 
 // ------------------------------------------------------------------
-/**
- * Callback when a mouse button was pressed on the panel.
+/** Callback when a mouse button was pressed on the panel.
  * 
- * \param widget some passed widget
- * \param ev event message information
+ * @param widget some passed widget
+ * @param ev     event message information
+ *
+ * @return       TRUE
 */
 
 static gint
@@ -202,11 +209,11 @@ cb_panel_press( GtkWidget *widget, GdkEventButton *ev)
 			_vaio.display_time ^= 1;
 
 			if ( _vaio.display_time )
-				sprintf( buff, "%d:%d"
+				sprintf( buff, "%d:%.2d"
 						, HR_TIME( _vaio.power_time)
 						, MN_TIME( _vaio.power_time) );
 			else
-				sprintf( buff, "%d%%", _vaio.power_pct );
+				sprintf( buff, "%d%%", _vaio.power_pctt );
 			
 			gkrellm_draw_decal_text( panel, apm_text, buff, -1 );
 
@@ -217,11 +224,10 @@ cb_panel_press( GtkWidget *widget, GdkEventButton *ev)
 }
 
 // ------------------------------------------------------------------
-/**
- * Create our plugin panel
+/** Create our plugin panel
  *
- * \param vbox widget to draw stuff in
- * \param first_create if we are a poppin fresh krellm
+ * @param vbox widget to draw stuff in
+ * @param first_create if we are a poppin fresh krellm
 */
 
 static void
@@ -260,6 +266,18 @@ create_plugin( GtkWidget *vbox, gint first_create )
 	bat_cnt = _vaio.power_src;
 
 	x = 4;
+	// create the battery image decals
+	batt1_decal = gkrellm_create_decal_pixmap( panel, pixmap, mask
+		, N_MISC_DECALS, NULL, x, 2 );
+	gkrellm_draw_decal_pixmap( panel, batt1_decal, D_MISC_BATTERY );
+
+	x = batt1_decal->x + batt1_decal->w + 4;
+	batt2_decal = gkrellm_create_decal_pixmap( panel, pixmap, mask
+		, N_MISC_DECALS, NULL, x, 2 );
+	gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BATTERY );
+	
+	x = batt2_decal->x + batt2_decal->w + 4;
+
 	// create the AC image decal
 	ac_decal = gkrellm_create_decal_pixmap( panel, pixmap, mask
 		, N_MISC_DECALS, NULL, x, 2 );
@@ -267,24 +285,13 @@ create_plugin( GtkWidget *vbox, gint first_create )
 	
 	x = ac_decal->x + ac_decal->w + 4;
 	
-	// create the battery image decal
-	batt1_decal = gkrellm_create_decal_pixmap( panel, pixmap, mask
-		, N_MISC_DECALS, NULL, x, 2 );
-	gkrellm_draw_decal_pixmap( panel, batt1_decal, D_MISC_BATTERY );
-	
-	x = batt1_decal->x + batt1_decal->w + 4;
-/*
-	if ( bat_cnt & 2 ) {
-		batt2_decal = gkrellm_create_decal_pixmap( panel, pixmap, mask
-			, N_MISC_DECALS, NULL, x, 2 );
-		gkrellm_draw_decal_pixmap( panel, batt2_decal, D_MISC_BATTERY );
-		
-		x = batt2_decal->x + batt2_decal->w + 4;
-	}
-*/	
 	apm_text = gkrellm_create_decal_text( panel, "100",
 			ts_alt, style, x, 3, -1 );
 	
+	// adjust positions
+	apm_text->x = ac_decal->x;	// capacity percentage rightmost
+	ac_decal->x = batt2_decal->x;	// batt2 or ac symbol in the middle
+
 	gkrellm_panel_configure( panel, NULL, style );
 	gkrellm_panel_create( vbox, monitor, panel );
 
@@ -322,8 +329,9 @@ static Monitor plugin_mon =
 };
 
 // ------------------------------------------------------------------
-/**
- * Initialize the gkrellm plugin 
+/** Initialize the gkrellm plugin 
+ *
+ * @return Monitor struct pointer
 */
 
 Monitor *

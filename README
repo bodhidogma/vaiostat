@@ -1,6 +1,10 @@
 VaioBat 1.0 and VaioLCD 1.0 utilites for Sony Vaio
 Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
 
+VaioBat 1.2: 	Support for two batteries enabled. Capacity percentage is
+		always shown to have battery status while charging.
+
+
 How to Install:
 
   make
