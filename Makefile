@@ -9,17 +9,28 @@ LIBS	= -lpthread `gtk-config --cflags` `glib-config --cflags`
 
 INSTDIR = /usr/local/lib/gkrellm/plugins
 
-.SUFFIXES: .c .so
+.SUFFIXES: .c .so .o
 
 .c.so:	$(DEPEND)
-	$(CC) $(OPTS) $(INCLUDE) $(DEFINES) -fPIC -c $*.c -o $@ 
+	$(CC) $(OPTS) $(INCLUDE) $(DEFINES) -c $*.c -o $*.o 
+	$(CC) $(OPTS) -o $@ $*.o $(LIBS)
 
-GKV	 = vaiobat.so 
-SETB = vaiolcd.so
+.c.o:	$(DEPEND)
+	$(CC) $(OPTS) $(INCLUDE) $(DEFINES) -c $*.c -o $@ 
 
-all:	$(GKV) $(SETB)
+VBATc	= vaiobat.c 
+VBATso	= vaiobat.so 
 
-install: $(SETB) $(GKV)
+VLCDc	= vaiolcd.c
+VLCDso	= vaiolcd.so
+
+all: $(VBATso) $(VLCDso)
+
+$(VBATso): $(VBATc)
+
+$(VLCDso): $(VLCDc)
+
+install: $(VLCDso) $(VBATso)
 	install -s -m644 $^ $(INSTDIR)
 
 realclean:
@@ -34,4 +45,3 @@ dist: clean
 	tar -cvf - vaio_krellm-$(VER)|gzip -9 - >vaio_krellm-$(VER).tar.gz
 	@rm -rf vaio_krellm-$(VER)
 
-	
