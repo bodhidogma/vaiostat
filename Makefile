@@ -22,8 +22,11 @@ all:	$(GKV) $(SETB)
 install: $(SETB) $(GKV)
 	install -s -m644 $^ $(INSTDIR)
 
+realclean:
+	-rm *.tar*
+
 clean:
-	-rm *.o *.so *.tar*
+	-rm *.o *.so
 
 dist: clean
 	@-mkdir vaio_krellm-$(VER) > /dev/null 2>&1
