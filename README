@@ -1,0 +1,40 @@
+VaioBat 1.0 and VaioLCD 1.0 utilites for Sony Vaio
+Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
+
+How to Install:
+
+  make
+  make install
+
+The LCD module is derived from the code:
+ vaiobright 1.1 by Mike Kernshaw <dragorn@nerv-un.net>.
+
+The Battery / power module is based on code from the vaiobat.c file that came
+with a 'picturebook' distrabution by Andrew Tridgel <tridge@linuxcare.com>
+
+The original module I created was vaiobat.  Used to read and display battery
+status information.  I realized that I needed a helper application similar
+to the VaioBright module.  However, it seemed silly to me to have the
+VaioBright module running with a helper app, and either add another helper
+app, or customize his helper to support battery status info.
+
+I ended up learing how to write a kernel module to serve the purpose of a
+helper app to read info / set values for the Sony VAIO which I had.  As a
+result, these two applications require that kernel module.  It should be
+available within this distro.  If not, you can find it at:
+
+http://queda.net/linux/vaiostat/
+
+To install, you will need to firstly unpack the vaiostat archive.  Build and
+install the kernel module.  Once the module is installed, information about
+the Vaio will be avilable via a /proc filesystem entry (/proc/vaio/status)
+
+This file is what both modules use to read / set information about it's state.
+
+The original location for this package should be:
+http://queda.net/linux/
+
+If you have any comments / questions / suggestions, send them to:
+
+Paul McAvoy <paulmcav@queda.net>
+
