@@ -3,7 +3,7 @@
 VER=1.0
 
 CC=gcc
-MODCFLAGS := -Wall -DMODULE -D__KERNEL__ -DLINUX
+MODCFLAGS := -Wall -DMODULE -D__KERNEL__ -DLINUX -O2
 KVER=$(shell uname -r)
 INC=-I/lib/modules/$(KVER)/build/include
 
