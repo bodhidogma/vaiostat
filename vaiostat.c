@@ -2,7 +2,7 @@
  * File:        vaiostat.c
  * Author:      Paul McAvoy <paulmcav@queda.net>
  * 
- * $Id: vaiostat.c,v 1.2 2002-01-14 08:08:12 paulmcav Exp $
+ * $Id: vaiostat.c,v 1.3 2002-06-21 17:57:36 paulmcav Exp $
  * 
  * Vaio status / control kernel module
  * Copyright (C) 2002 Paul McAvoy <paulmcav@queda.net>
@@ -48,6 +48,12 @@ static char ctrl_msg[ BUFF_LEN ];
 
 static int verbose = 0;
 
+/* on my fx270 there appear to be only 8 steps.
+ * use anything from 1-255 if you think you get better resolution.
+*/
+#define LCD_NUM_STEPS   8
+
+/* register locations */
 #define LCD_LEVEL   0x96
 #define PWR_SRCS    0x81
 
@@ -125,7 +131,7 @@ write_status_info(
 		return 0;
 
 	/* get LCD brightness level */
-	v1 = ecr_get8( LCD_LEVEL ) / 31;
+	v1 = ecr_get8( LCD_LEVEL ) / (255/LCD_NUM_STEPS);
 	len += sprintf( page+len,
 			"lcd_lvl\t : %d\n"
 			,v1
@@ -214,10 +220,10 @@ vaio_lcd_ctrl(
 	ctrl_msg[i] = '\0';
 	 
 	val = atoi(ctrl_msg);
-	if ( val > 8 ) val = 8;
+	if ( val > LCD_NUM_STEPS ) val = LCD_NUM_STEPS;
 
 	/* adjust lcd brightness */
-	ecr_set( 0x96, val *= 31 );
+	ecr_set( 0x96, val *= (255/LCD_NUM_STEPS) );
 
 	if ( verbose ) printk( "vaiostat:lcd_bright = %d\n", val );
 
