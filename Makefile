@@ -12,6 +12,9 @@ INSTDIR=/lib/modules/$(KVER)/misc
 vaiostat.o: vaiostat.c
 	$(CC) $(MODCFLAGS) $(INC) -c $^
 
+realclean:
+	-rm *.tar*
+
 clean:
 	-rm -f *.o *.tar*
 
